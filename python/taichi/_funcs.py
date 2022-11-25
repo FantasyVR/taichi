@@ -468,6 +468,8 @@ def _gauss_elimination_2x2(Ab, dt):
 
 @func
 def _gauss_elimination_3x3(Ab, dt):
+    x = Vector.zero(dt, 3)
+    sigularity = 0
     for i in static(range(3)):
         max_row = i
         max_v = ops.abs(Ab[i, i])
@@ -475,7 +477,8 @@ def _gauss_elimination_3x3(Ab, dt):
             if ops.abs(Ab[j, i]) > max_v:
                 max_row = j
                 max_v = ops.abs(Ab[j, i])
-        assert max_v != 0.0, "Matrix is singular in linear solve."
+        if max_v == 0.0:
+            sigularity = 1
         if i != max_row:
             if max_row == 1:
                 for col in static(range(4)):
@@ -483,20 +486,21 @@ def _gauss_elimination_3x3(Ab, dt):
             else:
                 for col in static(range(4)):
                     Ab[i, col], Ab[2, col] = Ab[2, col], Ab[i, col]
-        assert Ab[i, i] != 0.0, "Matrix is singular in linear solve."
+        if Ab[i, i] == 0.0:
+            sigularity = 1
         for j in static(range(i + 1, 3)):
             scale = Ab[j, i] / Ab[i, i]
             Ab[j, i] = 0.0
             for k in static(range(i + 1, 4)):
                 Ab[j, k] -= Ab[i, k] * scale
     # Back substitution
-    x = Vector.zero(dt, 3)
-    for i in static(range(2, -1, -1)):
-        x[i] = Ab[i, 3]
-        for k in static(range(i + 1, 3)):
-            x[i] -= Ab[i, k] * x[k]
-        x[i] = x[i] / Ab[i, i]
-    return x
+    if not sigularity:
+        for i in static(range(2, -1, -1)):
+            x[i] = Ab[i, 3]
+            for k in static(range(i + 1, 3)):
+                x[i] -= Ab[i, k] * x[k]
+            x[i] = x[i] / Ab[i, i]
+    return x, sigularity
 
 
 @func
@@ -525,13 +529,22 @@ def solve(A, b, dt=None):
     assert A.n == A.m, "Only square matrix is supported"
     assert A.n >= 2 and A.n <= 3, "Only 2D and 3D matrices are supported"
     assert A.m == b.n, "Matrix and Vector dimension dismatch"
-    if dt is None:
+    if static(dt is None):
         dt = impl.get_runtime().default_fp
     Ab = _combine(A, b, dt)
-    if A.n == 2:
-        return _gauss_elimination_2x2(Ab, dt)
-    if A.n == 3:
-        return _gauss_elimination_3x3(Ab, dt)
+    if static(A.n == 2):
+        sol, sig = _gauss_elimination_2x2(Ab, dt)
+        if ops.com_eq(sig, 1):
+            raise Exception("Matrix is singular in linear solve.")
+        return sol
+    if static(A.n == 3):
+        sol, sig = _gauss_elimination_3x3(Ab, dt)
+        if ops.cmp_eq(sig, 0):
+            print("Matrix is singular in linear solve.")
+        if all(sol == Matrix.zero(dt, 3, 1)):
+            print("Matrix is singular in linear solve.")
+            raise Exception("Matrix is singular in linear solve.")
+        return sol
     raise Exception("Solver only supports 2D and 3D matrices.")
 
 
