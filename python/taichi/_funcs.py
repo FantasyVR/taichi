@@ -538,11 +538,11 @@ def solve(A, b, dt=None):
     Ab = _combine(A, b, dt)
     if static(A.n == 2):
         sol, sig = _gauss_elimination_2x2(Ab, dt)
-        assert (ops.cmp_eq(sig, 1), "Matrix is singular in linear solve.")
+        assert ops.cmp_eq(sig, 0), "Matrix is singular in linear solve."
         return sol
     if static(A.n == 3):
         sol, sig = _gauss_elimination_3x3(Ab, dt)
-        assert (ops.cmp_eq(sig, 1), "Matrix is singular in linear solve.")
+        assert ops.cmp_eq(sig, 0), "Matrix is singular in linear solve."
         return sol
     raise Exception("Only 2D and 3D matrices are supported")
 
