@@ -1,7 +1,7 @@
 import math
 
 from taichi.lang import impl, ops
-from taichi.lang.impl import get_runtime, grouped, static
+from taichi.lang.impl import get_runtime, grouped, static, static_assert
 from taichi.lang.kernel_impl import func
 from taichi.lang.matrix import Matrix, Vector
 from taichi.types import f32, f64
@@ -450,11 +450,13 @@ def sym_eig(A, dt=None):
 
 @func
 def _gauss_elimination_2x2(Ab, dt):
+    sigularity = False
     if ops.abs(Ab[0, 0]) < ops.abs(Ab[1, 0]):
         Ab[0, 0], Ab[1, 0] = Ab[1, 0], Ab[0, 0]
         Ab[0, 1], Ab[1, 1] = Ab[1, 1], Ab[0, 1]
         Ab[0, 2], Ab[1, 2] = Ab[1, 2], Ab[0, 2]
-    assert Ab[0, 0] != 0.0, "Matrix is singular in linear solve."
+    if Ab[0, 0] != 0.0:
+        sigularity = True
     scale = Ab[1, 0] / Ab[0, 0]
     Ab[1, 0] = 0.0
     for k in static(range(1, 3)):
@@ -463,7 +465,7 @@ def _gauss_elimination_2x2(Ab, dt):
     # Back substitution
     x[1] = Ab[1, 2] / Ab[1, 1]
     x[0] = (Ab[0, 2] - Ab[0, 1] * x[1]) / Ab[0, 0]
-    return x
+    return x, sigularity
 
 
 @func
@@ -515,6 +517,7 @@ def _combine(A, b, dt):
     return Ab
 
 
+@func
 def solve(A, b, dt=None):
     """Solve a matrix using Gauss elimination method.
 
@@ -526,26 +529,22 @@ def solve(A, b, dt=None):
     Returns:
         x (ti.Vector(n, 1)): the solution of Ax=b.
     """
-    assert A.n == A.m, "Only square matrix is supported"
-    assert A.n >= 2 and A.n <= 3, "Only 2D and 3D matrices are supported"
-    assert A.m == b.n, "Matrix and Vector dimension dismatch"
-    if static(dt is None):
+    static_assert(A.n == A.m, "Only square matrix is supported")
+    static_assert(A.n >= 2 and A.n <= 3,
+                  "Only 2D and 3D matrices are supported")
+    static_assert(A.m == b.n, "Matrix and Vector dimension dismatch")
+    if static(not dt):
         dt = impl.get_runtime().default_fp
     Ab = _combine(A, b, dt)
     if static(A.n == 2):
         sol, sig = _gauss_elimination_2x2(Ab, dt)
-        if ops.com_eq(sig, 1):
-            raise Exception("Matrix is singular in linear solve.")
+        assert (ops.cmp_eq(sig, 1), "Matrix is singular in linear solve.")
         return sol
     if static(A.n == 3):
         sol, sig = _gauss_elimination_3x3(Ab, dt)
-        if ops.cmp_eq(sig, 0):
-            print("Matrix is singular in linear solve.")
-        if all(sol == Matrix.zero(dt, 3, 1)):
-            print("Matrix is singular in linear solve.")
-            raise Exception("Matrix is singular in linear solve.")
+        assert (ops.cmp_eq(sig, 1), "Matrix is singular in linear solve.")
         return sol
-    raise Exception("Solver only supports 2D and 3D matrices.")
+    raise Exception("Only 2D and 3D matrices are supported")
 
 
 @func
