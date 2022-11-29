@@ -34,7 +34,7 @@ debug = False
 use_sparse_matrix = args.use_sp_mat
 
 if use_sparse_matrix:
-    ti.init(arch=ti.x64)
+    ti.init(arch=ti.cuda, device_memory_GB=0.90)
     print('Using sparse matrix')
 else:
     ti.init(arch=ti.gpu)
@@ -86,7 +86,7 @@ if use_sparse_matrix:
 
     N = res * res
     K = ti.linalg.SparseMatrixBuilder(N, N, max_num_triplets=N * 6)
-    F_b = ti.field(ti.f32, shape=N)
+    F_b = ti.ndarray(ti.f32, shape=N)
 
     fill_laplacian_matrix(K)
     L = K.build()
@@ -236,7 +236,7 @@ def enhance_vorticity(vf: ti.template(), cf: ti.template()):
 
 
 @ti.kernel
-def copy_divergence(div_in: ti.template(), div_out: ti.template()):
+def copy_divergence(div_in: ti.template(), div_out: ti.types.ndarray()):
     for I in ti.grouped(div_in):
         div_out[I[0] * res + I[1]] = -div_in[I]
 
